@@ -1,0 +1,17 @@
+-- Очистка таблиц для тестов
+SET FOREIGN_KEY_CHECKS = 0;
+
+TRUNCATE TABLE order_items;
+TRUNCATE TABLE orders;
+TRUNCATE TABLE cart_items;
+TRUNCATE TABLE carts;
+TRUNCATE TABLE products;
+
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- Сброс автоинкремента
+ALTER TABLE products AUTO_INCREMENT = 1;
+ALTER TABLE carts AUTO_INCREMENT = 1;
+ALTER TABLE cart_items AUTO_INCREMENT = 1;
+ALTER TABLE orders AUTO_INCREMENT = 1;
+ALTER TABLE order_items AUTO_INCREMENT = 1;

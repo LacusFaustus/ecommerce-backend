@@ -1,0 +1,404 @@
+
+Техническое задание на разработку Бэкенд-части E-commerce платформы
+
+Версия: 1.0
+Дата: 20.10.2023
+Проект: E-commerce Backend
+Целевая платформа: Java 21, Windows, IDE (IntelliJ IDEA / Eclipse / VS Code)
+
+1. Введение
+1.1. Назначение проекта
+Разработка надежной, масштабируемой и безопасной бэкенд-части (Backend) для интернет-магазина. Система будет обеспечивать работу ключевых функций: управление товарами, корзиной покупок, оформление и обработку заказов, а также хранение данных.
+
+1.2. Цели
+Реализовать RESTful API для взаимодействия с фронтенд-частью (веб-приложение, мобильное приложение).
+
+Обеспечить целостность и безопасность бизнес-логики и данных.
+
+Создать модульную и поддерживаемую архитектуру приложения.
+
+Гарантировать качество кода и надежность функционала через написание комплексных интеграционных тестов.
+
+1.3. Целевая аудитория
+Разработчики бэкенда: Для понимания архитектуры и реализации.
+
+Тестировщики: Для понимания бизнес-логики при написании тестов.
+
+Технический лид / Менеджер проекта: Для контроля выполнения задач.
+
+2. Общее описание
+2.1. Функциональность системы
+Система предоставляет API для следующих сущностей и процессов:
+
+Каталог товаров: Просмотр, поиск и фильтрация товаров.
+
+Корзина покупок: Добавление, изменение количества, удаление товаров.
+
+Процесс оформления заказа: Создание заказа на основе корзины.
+
+Управление заказами: Просмотр статусов заказов.
+
+2.2. Технический стек
+Язык программирования: Java 21
+
+Фреймворк: Spring Boot 3.x
+
+Сборка: Maven или Gradle
+
+База данных: MySQL
+
+ORM: Hibernate / JPA
+
+Тестирование: JUnit 5, Spring Boot Test, Testcontainers (или H2 для изолированных тестов)
+
+Среда разработки: Windows, любая современная IDE (IntelliJ IDEA рекомендуется)
+
+3. Требования к функционалу (API Endpoints)
+3.1. Модуль "Каталог товаров"
+GET /api/products: Получить список товаров с поддержкой пагинации, сортировки и фильтрации (по категории, цене, названию).
+
+GET /api/products/{id}: Получить подробную информацию о конкретном товаре по его ID.
+
+3.2. Модуль "Корзина покупок"
+POST /api/cart: Создать новую корзину. Возвращает ID корзины.
+
+GET /api/cart/{cartId}: Получить содержимое корзины по ее ID.
+
+POST /api/cart/{cartId}/items: Добавить товар в корзину. Тело запроса: { "productId": 123, "quantity": 2 }.
+
+PUT /api/cart/{cartId}/items/{itemId}: Изменить количество товара в корзине. Тело запроса: { "quantity": 5 }.
+
+DELETE /api/cart/{cartId}/items/{itemId}: Удалить товар из корзины.
+
+3.3. Модуль "Заказы"
+POST /api/orders: Создать новый заказ на основе корзины. Тело запроса: { "cartId": "uuid", "customerInfo": { ... }, "shippingAddress": { ... } }.
+
+GET /api/orders/{orderId}: Получить информацию о заказе по его ID.
+
+GET /api/orders: Получить список всех заказов (с пагинацией, для админки).
+
+4. Детали реализации
+4.1. Модели данных (Сущности JPA)
+java
+// Product (Товар)
+@Entity
+public class Product {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    private String name;
+    private String description;
+    private BigDecimal price;
+    private Integer stockQuantity;
+    private String category;
+    // ... getters/setters, конструкторы
+}
+
+// Cart (Корзина)
+@Entity
+public class Cart {
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id; // Или Long
+    @OneToMany(mappedBy = "cart", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<CartItem> items = new ArrayList<>();
+    private BigDecimal totalPrice;
+    // ... методы для пересчета общей суммы
+}
+
+// CartItem (Элемент корзины)
+@Entity
+public class CartItem {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    @ManyToOne
+    private Cart cart;
+    @ManyToOne
+    private Product product;
+    private Integer quantity;
+    // ... getters/setters
+}
+
+// Order (Заказ)
+@Entity
+public class Order {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    private String status; // e.g., "PENDING", "PROCESSING", "SHIPPED", "DELIVERED"
+    private BigDecimal totalAmount;
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
+    private List<OrderItem> orderItems;
+    @Embedded
+    private CustomerInfo customerInfo;
+    @Embedded
+    private Address shippingAddress;
+    private LocalDateTime createdAt;
+}
+
+// OrderItem (Элемент заказа)
+@Entity
+public class OrderItem {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    @ManyToOne
+    private Order order;
+    private String productName;
+    private BigDecimal productPrice;
+    private Integer quantity;
+    // Важно: сохраняем снимок данных на момент заказа, а не ссылку на Product
+}
+4.2. Бизнес-логика
+Корзина:
+
+При добавлении товара проверять его наличие на складе (stockQuantity).
+
+Автоматически пересчитывать totalPrice корзины при любом изменении состава.
+
+Заказ:
+
+При создании заказа резервировать товары (уменьшать stockQuantity у Product).
+
+Заказ должен создаваться на основе текущего состояния корзины.
+
+В OrderItem сохраняется снимок (snapshot) данных товара (название, цена) на момент оформления заказа. Это гарантирует, что исторические заказы не изменятся, даже если данные товара будут обновлены.
+
+После успешного создания заказа корзина должна очищаться.
+
+4.3. Тестирование (Integration Tests)
+Цель: Проверить взаимодействие всех слоев приложения (Controller -> Service -> Repository) с реальной (или максимально приближенной) базой данных.
+
+Подход:
+
+Использовать @DataJpaTest для тестирования JPA-репозиториев.
+
+Использовать @SpringBootTest для полных интеграционных тестов, поднимая контекст приложения.
+
+Использовать Testcontainers для запуска изолированного контейнера с MySQL в тестах. Это лучшая практика, так как обеспечивает полную совместимость с продакшен-БД.
+
+Примеры сценариев для тестирования:
+
+shouldCreateCartAndAddItem: Создать корзину, добавить товар, проверить, что товар и общая сумма корректны.
+
+shouldNotAllowToAddItemWhenStockIsInsufficient: Попытка добавить товар в количестве, превышающем остаток на складе, должна вызывать исключение.
+
+shouldCreateOrderAndClearCart: Создание заказа на основе корзины, проверка, что заказ создан с правильными данными, остатки товара уменьшены, а корзина очищена.
+
+shouldRollbackTransactionIfProductIsOutOfStockDuringOrder: Проверка атомарности транзакции при оформлении заказа, если один из товаров закончился.
+
+5. Конфигурация и настройка
+application.yml / application.properties:
+
+Настройки подключения к MySQL (URL, username, password, драйвер).
+
+spring.jpa.hibernate.ddl-auto: update (для разработки) или validate (для более строгого контроля).
+
+Настройка показа SQL-запросов в логах для отладки: spring.jpa.show-sql: true.
+
+Зависимости Maven/Gradle: spring-boot-starter-web, spring-boot-starter-data-jpa, mysql-connector-j, spring-boot-starter-test, testcontainers, junit-jupiter.
+
+6. Нефункциональные требования
+Производительность: Критические запросы (получение каталога, корзины) должны выполняться менее чем за 200 мс.
+
+Надежность: Обеспечение целостности данных при работе с заказами и остатками товара (транзакции).
+
+Масштабируемость: Чистая архитектура (слои Controller-Service-Repository) для упрощения дальнейшего развития.
+
+Безопасность: (На будущее) Готовность к добавлению аутентификации и авторизации (например, с помощью Spring Security). Пока все endpoints публичные, но архитектура должна это учитывать.
+
+7. Этапы разработки (Roadmap)
+Этап 1: Настройка проекта и базовая инфраструктура.
+
+Создать Spring Boot проект на Java 21.
+
+Настроить подключение к MySQL.
+
+Настроить зависимости и конфигурацию.
+
+Этап 2: Модуль "Каталог товаров".
+
+Реализовать сущность Product и ProductRepository.
+
+Реализовать ProductController и ProductService.
+
+Написать интеграционные тесты для репозитория и контроллера.
+
+Этап 3: Модуль "Корзина покупок".
+
+Реализовать сущности Cart и CartItem.
+
+Реализовать CartController и CartService со всей бизнес-логикой.
+
+Тщательно протестировать все сценарии работы с корзиной.
+
+Этап 4: Модуль "Заказы".
+
+Реализовать сущности Order, OrderItem, CustomerInfo, Address.
+
+Реализовать OrderController и OrderService с логикой оформления заказа.
+
+Написать комплексные интеграционные тесты, покрывающие весь процесс от корзины до заказа.
+
+Этап 5: Финальная доработка и документация.
+
+Рефакторинг кода.
+
+Создание базовой документации API (можно с помощью Spring Doc OpenAPI).
+
+Подготовка к сдаче.
+
+
+
+
+
+
+
+online-store/
+├── 📁 src/
+│   ├── 📁 main/
+│   │   ├── 📁 java/
+│   │   │   └── 📁 com/ecommerce/onlinestore/
+│   │   │       ├── 🟦 OnlineStoreApplication.java
+│   │   │       │
+│   │   │       ├── 📁 config/                          # Конфигурационные классы
+│   │   │       │   ├── 🟦 DatabaseConfig.java
+│   │   │       │   ├── 🟦 SwaggerConfig.java
+│   │   │       │   └── 🟦 WebConfig.java
+│   │   │       │
+│   │   │       ├── 📁 controller/                      # REST контроллеры
+│   │   │       │   ├── 🟦 ProductController.java
+│   │   │       │   ├── 🟦 CartController.java
+│   │   │       │   ├── 🟦 OrderController.java
+│   │   │       │   └── 🟦 GlobalExceptionHandler.java
+│   │   │       │
+│   │   │       ├── 📁 service/                         # Бизнес-логика
+│   │   │       │   ├── 🟦 ProductService.java
+│   │   │       │   ├── 🟦 CartService.java
+│   │   │       │   ├── 🟦 OrderService.java
+│   │   │       │   └── 📁 impl/                       # Реализации сервисов
+│   │   │       │       ├── 🟦 ProductServiceImpl.java
+│   │   │       │       ├── 🟦 CartServiceImpl.java
+│   │   │       │       └── 🟦 OrderServiceImpl.java
+│   │   │       │
+│   │   │       ├── 📁 repository/                      # Доступ к данным
+│   │   │       │   ├── 🟦 ProductRepository.java
+│   │   │       │   ├── 🟦 CartRepository.java
+│   │   │       │   ├── 🟦 CartItemRepository.java
+│   │   │       │   ├── 🟦 OrderRepository.java
+│   │   │       │   └── 🟦 OrderItemRepository.java
+│   │   │       │
+│   │   │       ├── 📁 model/                           # Модели данных
+│   │   │       │   ├── 📁 entity/                     # JPA сущности
+│   │   │       │   │   ├── 🟦 Product.java
+│   │   │       │   │   ├── 🟦 Cart.java
+│   │   │       │   │   ├── 🟦 CartItem.java
+│   │   │       │   │   ├── 🟦 Order.java
+│   │   │       │   │   ├── 🟦 OrderItem.java
+│   │   │       │   │   ├── 🟦 CustomerInfo.java
+│   │   │       │   │   └── 🟦 Address.java
+│   │   │       │   │
+│   │   │       │   ├── 📁 dto/                        # Data Transfer Objects
+│   │   │       │   │   ├── 🟦 ProductDTO.java
+│   │   │       │   │   ├── 🟦 CartDTO.java
+│   │   │       │   │   ├── 🟦 CartItemDTO.java
+│   │   │       │   │   ├── 🟦 OrderDTO.java
+│   │   │       │   │   ├── 🟦 OrderItemDTO.java
+│   │   │       │   │   ├── 🟦 AddToCartRequest.java
+│   │   │       │   │   ├── 🟦 UpdateCartItemRequest.java
+│   │   │       │   │   └── 🟦 CreateOrderRequest.java
+│   │   │       │   │
+│   │   │       │   ├── 📁 enums/                      # Перечисления
+│   │   │       │   │   └── 🟦 OrderStatus.java
+│   │   │       │   │
+│   │   │       │   └── 📁 exception/                  # Кастомные исключения
+│   │   │       │       ├── 🟦 ProductNotFoundException.java
+│   │   │       │       ├── 🟦 CartNotFoundException.java
+│   │   │       │       ├── 🟦 OrderNotFoundException.java
+│   │   │       │       ├── 🟦 InsufficientStockException.java
+│   │   │       │       └── 🟦 BusinessException.java
+│   │   │       │
+│   │   │       ├── 📁 mapper/                         # Мапперы для преобразования
+│   │   │       │   ├── 🟦 ProductMapper.java
+│   │   │       │   ├── 🟦 CartMapper.java
+│   │   │       │   └── 🟦 OrderMapper.java
+│   │   │       │
+│   │   │       └── 📁 util/                           # Утилиты
+│   │   │           └── 🟦 Constants.java
+│   │   │
+│   │   └── 📁 resources/
+│   │       ├── 📄 application.yml                     # Основная конфигурация
+│   │       ├── 📄 application-dev.yml                 # Конфигурация для разработки
+│   │       ├── 📄 application-test.yml                # Конфигурация для тестов
+│   │       ├── 📁 db/
+│   │       │   ├── 📄 migration/                      # Миграции базы данных
+│   │       │   │   ├── 📄 V1__Create_products_table.sql
+│   │       │   │   ├── 📄 V2__Create_carts_table.sql
+│   │       │   │   ├── 📄 V3__Create_orders_table.sql
+│   │       │   │   └── 📄 V4__Insert_sample_data.sql
+│   │       │   │
+│   │       │   └── 📄 data.sql                        # Тестовые данные
+│   │       │
+│   │       └── 📁 static/
+│   │           └── 📁 docs/
+│   │               └── 📄 api-docs.yaml               # Документация API
+│   │
+│   └── 📁 test/
+│       └── 📁 java/com/ecommerce/onlinestore/
+│           ├── 🟦 OnlineStoreApplicationTests.java    # Основной тест приложения
+│           │
+│           ├── 📁 repository/                         # Тесты репозиториев
+│           │   ├── 🟦 ProductRepositoryTest.java
+│           │   ├── 🟦 CartRepositoryTest.java
+│           │   ├── 🟦 OrderRepositoryTest.java
+│           │   └── 🟦 TestDatabaseConfig.java
+│           │
+│           ├── 📁 service/                            # Тесты сервисов
+│           │   ├── 🟦 ProductServiceTest.java
+│           │   ├── 🟦 CartServiceTest.java
+│           │   ├── 🟦 OrderServiceTest.java
+│           │   └── 📁 impl/
+│           │       ├── 🟦 ProductServiceImplTest.java
+│           │       ├── 🟦 CartServiceImplTest.java
+│           │       └── 🟦 OrderServiceImplTest.java
+│           │
+│           ├── 📁 controller/                         # Тесты контроллеров
+│           │   ├── 🟦 ProductControllerTest.java
+│           │   ├── 🟦 CartControllerTest.java
+│           │   ├── 🟦 OrderControllerTest.java
+│           │   └── 🟦 ControllerTestBase.java         # Базовый класс для тестов
+│           │
+│           ├── 📁 integration/                        # Интеграционные тесты
+│           │   ├── 🟦 ProductIntegrationTest.java
+│           │   ├── 🟦 CartIntegrationTest.java
+│           │   ├── 🟦 OrderIntegrationTest.java
+│           │   ├── 🟦 FullOrderFlowIntegrationTest.java
+│           │   └── 🟦 TestContainersConfig.java
+│           │
+│           └── 📁 util/                               # Утилиты для тестов
+│               ├── 🟦 TestDataFactory.java
+│               ├── 🟦 JsonUtils.java
+│               └── 🟦 TestConstants.java
+│
+├── 📁 docs/                                           # Документация проекта
+│   ├── 📄 API.md                                      # Документация API
+│   ├── 📄 DATABASE.md                                 # Описание базы данных
+│   └── 📄 SETUP.md                                    # Инструкция по установке
+│
+├── 📁 scripts/                                        # Вспомогательные скрипты
+│   ├── 📄 start-mysql.sh                              # Запуск MySQL
+│   ├── 📄 init-db.sh                                  # Инициализация БД
+│   └── 📄 run-tests.sh                                # Запуск тестов
+│
+├── 📄 pom.xml                                         # Maven конфигурация
+├── 📄 Dockerfile                                      # Конфигурация Docker
+├── 📄 docker-compose.yml                              # Docker Compose
+├── 📄 .gitignore                                      # Git ignore правила
+├── 📄 README.md                                       # Описание проекта
+└── 📄 .env.example                                    # Пример переменных окружения
+
+
+
+
+
