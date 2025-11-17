@@ -56,11 +56,11 @@ class FullOrderFlowIntegrationTest {
     @Test
     void shouldCompleteFullOrderFlow() throws Exception {
         // 1. Add items to cart
-        Product laptop = findProductByName("Laptop"); // 999.99
-        Product smartphone = findProductByName("Smartphone"); // 499.99
+        Product laptop = findProductByName("Laptop");
+        Product smartphone = findProductByName("Smartphone");
 
         String addLaptopRequest = JsonUtils.toJson(TestDataFactory.createAddToCartRequest(laptop.getId(), 1));
-        String addPhoneRequest = JsonUtils.toJson(TestDataFactory.createAddToCartRequest(smartphone.getId(), 1)); // Changed to 1 item
+        String addPhoneRequest = JsonUtils.toJson(TestDataFactory.createAddToCartRequest(smartphone.getId(), 1));
 
         mockMvc.perform(post("/api/carts/{cartId}/items", testCart.getId())
                 .contentType(MediaType.APPLICATION_JSON)
@@ -75,8 +75,8 @@ class FullOrderFlowIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items", hasSize(2)))
-                .andExpect(jsonPath("$.totalItems", is(2))) // 1 + 1 = 2
-                .andExpect(jsonPath("$.totalPrice", is(1499.98))); // 999.99 + 499.99 = 1499.98
+                .andExpect(jsonPath("$.totalItems", is(2)))
+                .andExpect(jsonPath("$.totalPrice", is(1499.98)));
 
         // 2. Create order
         String createOrderRequest = JsonUtils.toJson(TestDataFactory.createCreateOrderRequest(testCart.getId()));
@@ -87,7 +87,7 @@ class FullOrderFlowIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.orderNumber", notNullValue()))
                 .andExpect(jsonPath("$.status", is("PENDING")))
-                .andExpect(jsonPath("$.totalAmount", is(1499.98))) // Same as cart total
+                .andExpect(jsonPath("$.totalAmount", is(1499.98)))
                 .andExpect(jsonPath("$.orderItems", hasSize(2)))
                 .andExpect(jsonPath("$.customerInfo.customerEmail", is(TestConstants.TEST_CUSTOMER_EMAIL)))
                 .andReturn();
@@ -109,22 +109,25 @@ class FullOrderFlowIntegrationTest {
         mockMvc.perform(get("/api/products/{id}", laptop.getId())
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.stockQuantity", is(9))); // Was 10, ordered 1
+                .andExpect(jsonPath("$.stockQuantity", is(9)));
 
         mockMvc.perform(get("/api/products/{id}", smartphone.getId())
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.stockQuantity", is(14))); // Was 15, ordered 1
+                .andExpect(jsonPath("$.stockQuantity", is(14)));
 
-        // 5. Get order by number
+        // 5. Get order by number - FIXED: используем реальный номер заказа
         mockMvc.perform(get("/api/orders/number/{orderNumber}", orderNumber)
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.orderNumber", is(orderNumber)))
                 .andExpect(jsonPath("$.orderItems", hasSize(2)));
 
-        // 6. Update order status
-        mockMvc.perform(put("/api/orders/{orderId}/status", 1)
+        // 6. Update order status - FIXED: используем реальный ID заказа
+        Long orderId = JsonUtils.fromJson(orderResponse, com.fasterxml.jackson.databind.JsonNode.class)
+                .path("id").asLong();
+
+        mockMvc.perform(put("/api/orders/{orderId}/status", orderId)
                         .param("status", "CONFIRMED")
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
