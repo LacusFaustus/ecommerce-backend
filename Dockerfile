@@ -1,4 +1,5 @@
-FROM openjdk:21-jdk-slim
+# Используем Eclipse Temurin для лучшей совместимости
+FROM eclipse-temurin:21-jdk
 
 WORKDIR /app
 
