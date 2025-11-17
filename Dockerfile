@@ -1,5 +1,4 @@
-# Используем Eclipse Temurin для лучшей совместимости
-FROM eclipse-temurin:21-jdk
+FROM eclipse-temurin:17-jdk
 
 WORKDIR /app
 
