@@ -10,12 +10,14 @@ spring:
     show-sql: false
     properties:
       hibernate:
+        # Используем правильный диалект для H2 с Spring Boot 3
         dialect: org.hibernate.dialect.H2Dialect
         format_sql: false
     defer-datasource-initialization: true
   sql:
     init:
-      mode: always
+      mode: never
+      data-locations: classpath:test-data.sql  # Добавьте если нужно тестовые данные
   h2:
     console:
       enabled: false
@@ -25,6 +27,8 @@ logging:
     com.ecommerce.onlinestore: WARN
     org.hibernate.SQL: WARN
     org.springframework: WARN
+    # Включите DEBUG для диагностики проблем с контекстом
+    org.springframework.test.context: DEBUG
 
 springdoc:
   api-docs:
